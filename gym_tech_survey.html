@@ -956,35 +956,102 @@
     return [...document.querySelectorAll('input[name="'+name+'"]:checked')].map(i => i.value).join(', ') || '—';
   }
 
-  function submitSurvey() {
-    if (!validate4()) return;
+  // ── Airtable webhook URL — paste yours here ──────────────────────────────
+  // How to get this:
+  //   1. Open your Airtable base
+  //   2. Click Automations (top bar) → + New automation
+  //   3. Choose trigger: "When webhook received"
+  //   4. Copy the webhook URL Airtable gives you — paste it below
+  //   5. Add an action: "Create record" → map each field from the webhook body
+  const WEBHOOK_URL = 'https://airtable.com/appYdfnlKGTStjW9E/wflkRkqH3dRy1noYR';
+  // ─────────────────────────────────────────────────────────────────────────
 
-    // Build summary
-    const rows = [
-      ['Gym frequency', getChecked('q_freq')],
-      ['Gym type', getChecked('q_type')],
-      ['Personal trainer', getChecked('q_pt')],
-      ['Tools used', getChecked('q_tools') || 'None selected'],
-      ['Satisfaction', document.getElementById('q_satisfaction').value + ' / 10'],
-      ['Biggest tracking gap', getChecked('q_gap')],
-      ['Camera comfort level', getChecked('q_feel')],
-      ['Desired features', getChecked('q_feat')],
-      ['Preferred access method', getChecked('q_access')],
-      ['Willingness to pay', '$' + document.getElementById('q_pay').value + '/mo'],
+  function collectPayload() {
+    const lk = n => {
+      const el = document.querySelector(`input[name="lk${n}"]:checked`);
+      return el ? Number(el.value) : null;
+    };
+    return {
+      gym_frequency:                  getChecked('q_freq'),
+      gym_type:                       getChecked('q_type'),
+      personal_trainer:               getChecked('q_pt'),
+      tools_used:                     getChecked('q_tools') || '—',
+      tracking_satisfaction:          Number(document.getElementById('q_satisfaction').value),
+      biggest_gap:                    getChecked('q_gap'),
+      auto_logging_comfort:           getChecked('q_feel'),
+      privacy_concern_remote_storage: lk(1),
+      privacy_concern_data_sold:      lk(2),
+      privacy_concern_identity:       lk(3),
+      privacy_concern_insurance:      lk(4),
+      privacy_concern_breach:         lk(5),
+      privacy_concern_employer:       lk(6),
+      privacy_controls:               getChecked('q_controls'),
+      desired_features:               getChecked('q_feat'),
+      preferred_access:               getChecked('q_access'),
+      willingness_to_pay:             Number(document.getElementById('q_pay').value),
+      open_feedback:                  document.getElementById('q_open').value.trim() || '—',
+      submitted_at:                   new Date().toISOString(),
+    };
+  }
+
+  function showThankYou(payload) {
+    const displayRows = [
+      ['Gym frequency',    payload.gym_frequency],
+      ['Gym type',         payload.gym_type],
+      ['Personal trainer', payload.personal_trainer],
+      ['Tools used',       payload.tools_used],
+      ['Satisfaction',     payload.tracking_satisfaction + ' / 10'],
+      ['Biggest gap',      payload.biggest_gap],
+      ['Service comfort',  payload.auto_logging_comfort],
+      ['Desired features', payload.desired_features],
+      ['Preferred access', payload.preferred_access],
+      ['Willing to pay',   '$' + payload.willingness_to_pay + '/mo'],
     ];
 
-    const container = document.getElementById('summary-rows');
-    container.innerHTML = rows.map(([k, v]) =>
-      `<div class="ty-row"><span class="ty-row-key">${k}</span><span class="ty-row-val">${v}</span></div>`
-    ).join('');
+    document.getElementById('summary-rows').innerHTML = displayRows
+      .map(([k, v]) =>
+        `<div class="ty-row"><span class="ty-row-key">${k}</span><span class="ty-row-val">${v}</span></div>`
+      ).join('');
 
     document.getElementById('prog-fill').style.width = '100%';
     document.getElementById('prog-label').textContent = 'Complete';
     document.getElementById('prog-pct').textContent = '100%';
-
     document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
     document.getElementById('thank-you').classList.add('active');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function submitSurvey() {
+    if (!validate4()) return;
+
+    const submitBtn = document.querySelector('#sec-4 .btn-primary');
+    const payload   = collectPayload();
+
+    submitBtn.disabled    = true;
+    submitBtn.textContent = 'Saving…';
+
+    try {
+      await fetch(WEBHOOK_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+      // Airtable webhooks return 200 with no body — treat any response as success
+      showThankYou(payload);
+
+    } catch (err) {
+      console.error('[survey] Webhook error:', err);
+      let errEl = document.getElementById('submit-error');
+      if (!errEl) {
+        errEl = document.createElement('p');
+        errEl.id = 'submit-error';
+        errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
+        submitBtn.parentElement.appendChild(errEl);
+      }
+      errEl.textContent = 'Could not save your response — please try again. (' + err.message + ')';
+      submitBtn.disabled    = false;
+      submitBtn.textContent = 'Submit survey →';
+    }
   }
 </script>
 </body>
