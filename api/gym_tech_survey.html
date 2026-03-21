@@ -956,14 +956,12 @@
     return [...document.querySelectorAll('input[name="'+name+'"]:checked')].map(i => i.value).join(', ') || '—';
   }
 
-  // ── Airtable webhook URL — paste yours here ──────────────────────────────
-  // How to get this:
-  //   1. Open your Airtable base
-  //   2. Click Automations (top bar) → + New automation
-  //   3. Choose trigger: "When webhook received"
-  //   4. Copy the webhook URL Airtable gives you — paste it below
-  //   5. Add an action: "Create record" → map each field from the webhook body
-  const WEBHOOK_URL = 'https://stayhealthy-stayhealthytechs-projects.vercel.app/api/submit';
+  // ── Serverless proxy URL — update after deploying to Vercel ─────────────
+  // The proxy receives this POST server-side and forwards it to the
+  // Airtable webhook URL, bypassing the browser CORS restriction.
+  // Locally:    http://localhost:3000/api/submit
+  // Production: https://your-project.vercel.app/api/submit
+  const PROXY_URL = 'https://your-project.vercel.app/api/submit';
   // ─────────────────────────────────────────────────────────────────────────
 
   function collectPayload() {
@@ -971,41 +969,47 @@
       const el = document.querySelector(`input[name="lk${n}"]:checked`);
       return el ? Number(el.value) : null;
     };
-    return {
-      gym_frequency:                  getChecked('q_freq'),
-      gym_type:                       getChecked('q_type'),
-      personal_trainer:               getChecked('q_pt'),
-      tools_used:                     getChecked('q_tools') || '—',
-      tracking_satisfaction:          Number(document.getElementById('q_satisfaction').value),
-      biggest_gap:                    getChecked('q_gap'),
-      auto_logging_comfort:           getChecked('q_feel'),
-      privacy_concern_remote_storage: lk(1),
-      privacy_concern_data_sold:      lk(2),
-      privacy_concern_identity:       lk(3),
-      privacy_concern_insurance:      lk(4),
-      privacy_concern_breach:         lk(5),
-      privacy_concern_employer:       lk(6),
-      privacy_controls:               getChecked('q_controls'),
-      desired_features:               getChecked('q_feat'),
-      preferred_access:               getChecked('q_access'),
-      willingness_to_pay:             Number(document.getElementById('q_pay').value),
-      open_feedback:                  document.getElementById('q_open').value.trim() || '—',
-      submitted_at:                   new Date().toISOString(),
+    const fields = {
+      'Gym Frequency':          getChecked('q_freq'),
+      'Gym Type':               getChecked('q_type'),
+      'Personal Trainer':       getChecked('q_pt'),
+      'Tools Used':             getChecked('q_tools') || '—',
+      'Tracking Satisfaction':  Number(document.getElementById('q_satisfaction').value),
+      'Biggest Gap':            getChecked('q_gap'),
+      'Auto Logging Comfort':   getChecked('q_feel'),
+      'Privacy Controls':       getChecked('q_controls'),
+      'Desired Features':       getChecked('q_feat'),
+      'Preferred Access':       getChecked('q_access'),
+      'Willingness To Pay ($/mo)': Number(document.getElementById('q_pay').value),
+      'Open Feedback':          document.getElementById('q_open').value.trim() || '—',
     };
+    // Only attach Likert fields the user actually answered
+    const likertMap = {
+      'Privacy: Remote Storage': lk(1),
+      'Privacy: Data Sold':      lk(2),
+      'Privacy: Identity':       lk(3),
+      'Privacy: Insurance':      lk(4),
+      'Privacy: Breach':         lk(5),
+      'Privacy: Employer':       lk(6),
+    };
+    for (const [key, val] of Object.entries(likertMap)) {
+      if (val !== null) fields[key] = val;
+    }
+    return fields;
   }
 
-  function showThankYou(payload) {
+  function showThankYou(fields) {
     const displayRows = [
-      ['Gym frequency',    payload.gym_frequency],
-      ['Gym type',         payload.gym_type],
-      ['Personal trainer', payload.personal_trainer],
-      ['Tools used',       payload.tools_used],
-      ['Satisfaction',     payload.tracking_satisfaction + ' / 10'],
-      ['Biggest gap',      payload.biggest_gap],
-      ['Service comfort',  payload.auto_logging_comfort],
-      ['Desired features', payload.desired_features],
-      ['Preferred access', payload.preferred_access],
-      ['Willing to pay',   '$' + payload.willingness_to_pay + '/mo'],
+      ['Gym frequency',    fields['Gym Frequency']],
+      ['Gym type',         fields['Gym Type']],
+      ['Personal trainer', fields['Personal Trainer']],
+      ['Tools used',       fields['Tools Used']],
+      ['Satisfaction',     fields['Tracking Satisfaction'] + ' / 10'],
+      ['Biggest gap',      fields['Biggest Gap']],
+      ['Service comfort',  fields['Auto Logging Comfort']],
+      ['Desired features', fields['Desired Features']],
+      ['Preferred access', fields['Preferred Access']],
+      ['Willing to pay',   '$' + fields['Willingness To Pay ($/mo)'] + '/mo'],
     ];
 
     document.getElementById('summary-rows').innerHTML = displayRows
@@ -1025,27 +1029,33 @@
     if (!validate4()) return;
 
     const submitBtn = document.querySelector('#sec-4 .btn-primary');
-    const payload   = collectPayload();
+    const fields    = collectPayload();
 
     submitBtn.disabled    = true;
     submitBtn.textContent = 'Saving…';
 
     try {
-      await fetch(WEBHOOK_URL, {
+      const res = await fetch(PROXY_URL, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify(payload),
+        body:    JSON.stringify({ fields }),
       });
-      // Airtable webhooks return 200 with no body — treat any response as success
-      showThankYou(payload);
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+
+      showThankYou(fields);
 
     } catch (err) {
-      console.error('[survey] Webhook error:', err);
+      console.error('[survey] Submit error:', err);
       let errEl = document.getElementById('submit-error');
       if (!errEl) {
         errEl = document.createElement('p');
         errEl.id = 'submit-error';
-        // errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
+        errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
         submitBtn.parentElement.appendChild(errEl);
       }
       errEl.textContent = 'Could not save your response — please try again. (' + err.message + ')';
