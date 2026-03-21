@@ -1045,7 +1045,7 @@
       if (!errEl) {
         errEl = document.createElement('p');
         errEl.id = 'submit-error';
-        errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
+        // errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
         submitBtn.parentElement.appendChild(errEl);
       }
       errEl.textContent = 'Could not save your response — please try again. (' + err.message + ')';
