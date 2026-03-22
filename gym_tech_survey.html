@@ -1027,28 +1027,58 @@
     const submitBtn = document.querySelector('#sec-4 .btn-primary');
     const payload   = collectPayload();
 
+    console.log('[survey] Starting submission...');
+    console.log('[survey] Webhook URL:', WEBHOOK_URL);
+    console.log('[survey] Payload:', JSON.stringify(payload, null, 2));
+    console.log('[survey] Request headers:', { 'Content-Type': 'application/json' });
+
     submitBtn.disabled    = true;
     submitBtn.textContent = 'Saving…';
 
     try {
-      await fetch(WEBHOOK_URL, {
+      console.log('[survey] Making fetch request...');
+      const response = await fetch(WEBHOOK_URL, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(payload),
       });
-      // Airtable webhooks return 200 with no body — treat any response as success
+
+      console.log('[survey] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries([...response.headers.entries()])
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('[survey] Response not OK:', errorText);
+        throw new Error(`HTTP ${response.status}: ${response.statusText} - ${errorText}`);
+      }
+
+      const responseText = await response.text().catch(() => '');
+      console.log('[survey] Response body:', responseText || '(empty)');
+      console.log('[survey] Submission successful!');
+      
+      // Treat any successful response as success
       showThankYou(payload);
 
     } catch (err) {
-      console.error('[survey] Webhook error:', err);
+      console.error('[survey] Submission failed:', err);
+      console.error('[survey] Error details:', {
+        name: err.name,
+        message: err.message,
+        stack: err.stack
+      });
+
       let errEl = document.getElementById('submit-error');
       if (!errEl) {
         errEl = document.createElement('p');
         errEl.id = 'submit-error';
-        // errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right';
+        errEl.style.cssText = 'color:#c0392b;font-size:13px;margin-top:12px;text-align:right;background:#ffeaea;padding:8px;border-radius:4px;';
         submitBtn.parentElement.appendChild(errEl);
       }
-      errEl.textContent = 'Could not save your response — please try again. (' + err.message + ')';
+      errEl.textContent = 'Could not save your response — please try again. Error: ' + err.message;
       submitBtn.disabled    = false;
       submitBtn.textContent = 'Submit survey →';
     }

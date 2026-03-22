@@ -23,16 +23,25 @@
 
 function setCors(res, origin) {
   const allowed = process.env.ALLOWED_ORIGIN || '*';
-  const isAllowed = allowed === '*' || origin === allowed;
-  res.setHeader('Access-Control-Allow-Origin', isAllowed ? (origin || '*') : allowed);
+  
+  if (allowed === '*') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+  } else {
+    // Allow specific origin or fallback to the requesting origin if it matches
+    res.setHeader('Access-Control-Allow-Origin', origin === allowed ? origin : allowed);
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Credentials', 'false');
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────────
 
 export default async function handler(req, res) {
   const origin = req.headers.origin || '';
+  console.log('[submit] Request origin:', origin);
+  console.log('[submit] Method:', req.method);
   setCors(res, origin);
 
   // Preflight
