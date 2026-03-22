@@ -1039,7 +1039,7 @@
       console.log('[survey] Making fetch request...');
       const response = await fetch(WEBHOOK_URL, {
         method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-vercel-protection-bypass': '3cuYVvk1wRplXfLcFj4PvcrShinoVVTk' },
         body:    JSON.stringify(payload),
       });
 
