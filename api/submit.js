@@ -32,7 +32,7 @@ function setCors(res, origin) {
   }
   
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-vercel-protection-bypass');
   res.setHeader('Access-Control-Allow-Credentials', 'false');
 }
 
