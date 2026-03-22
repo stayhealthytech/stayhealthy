@@ -56,7 +56,7 @@ export default async function handler(req, res) {
     const upstream = await fetch(webhookUrl, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    body,   // webhook expects a flat object, not { fields: {} }
+      body:    JSON.stringify(body),   // webhook expects a flat object, not { fields: {} }
     });
 
     // Airtable webhooks return 200 with an empty or minimal body — any 2xx is success
